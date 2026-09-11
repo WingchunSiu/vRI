@@ -1,320 +1,389 @@
 # vRI Initial Technical Plan
 
-> Status: initial planning document. It records current hypotheses and should be
-> revised after the first real integration and workflow tests.
+> Status: implementation hypothesis for the first vertical. It intentionally
+> leaves provider APIs and process topology small until a complete improvement
+> loop has been tested.
+
+## 0. Goal of the First Implementation
+
+The first implementation must demonstrate one causal path:
+
+```text
+opaque agent performs ordinary work
+  -> an episode exposes reusable experience
+  -> an improver proposes a method change
+  -> a verifier compares candidate and baseline
+  -> a human releases the change to a limited scope
+  -> a future episode resolves and uses the change
+  -> the assignment can be rolled back
+```
+
+The first mutable surfaces are external skills, context strategy, and routing.
+The agent's inner harness remains opaque. Multi-agent rooms, distributed
+execution, managed training, and evaluator evolution are not required to prove
+this path.
 
 ## 1. Design Stance
 
-vRI should provide **flexible agents and opinionated backend invariants**.
+The implementation follows **hard invariants, soft workflow**.
 
-Agents must have room to choose their own research process. vRI should not force
-every run through a fixed sequence of planning, hypothesis generation,
-experimentation, and evaluation. It should make these activities easy to record
-without requiring them to occur in one prescribed order.
+The core is opinionated about:
 
-The backend is opinionated about the properties required for durable research:
+- stable identities and immutable version references;
+- causal links from episodes to experience to candidates;
+- exact baseline, candidate, evaluator, and environment resolution;
+- controlled access to fixed, mutable, and protected components;
+- separation of evidence, decisions, releases, and assignments;
+- atomic recording of state changes and audit events;
+- budgets, human interventions, and rollback.
 
-- stable identity;
-- causality and lineage;
-- atomic state changes and event recording;
-- explicit actors and human interventions;
-- permissions and budgets;
-- reproducible references to context, artifacts, and evaluations.
+It is deliberately unopinionated about:
 
-The rule is **hard invariants, soft workflow**.
+- how an agent reasons or delegates;
+- how an improver searches for changes;
+- whether the agent uses Bash, Python, an RLM, or another control loop;
+- the order in which experiments are proposed and run;
+- which verifier expresses product or research judgment.
 
 ## 2. Local-First Architecture
 
 ```text
-                       Human / agents
-                             |
-                   CLI / API / shared files
-                             |
-                        vRI process
-              +--------------+--------------+
-              |                             |
-          vRI kernel                 workflow modules
-      identity / events /         context / artifact /
-      transactions / policy       eval / findings /
-      service registry            decisions / runs
-              |                             |
-              +-----------+-----------------+
-                          |
-                capability providers
-           Herdr / host / Git / filesystem /
-                    command evaluator
+                 Human / BYO agents
+                         |
+              CLI / generated skill / files
+                         |
+                    vRI local core
+       +-----------------+------------------+
+       | identities, manifests, event log   |
+       | episodes, candidates, evidence     |
+       | decisions, releases, assignments   |
+       +-----------------+------------------+
+                         |
+              provider and command adapters
+                         |
+      Agent / Session / Workspace / Context / Eval /
+          Environment / Model / Train / Serve
 ```
 
-The first version is one local process and one local state directory. Services
-are modules behind explicit interfaces, not separate microservices.
+The initial system is a modular monolith and local state directory. A service
+is a logical capability and version boundary, not necessarily a network
+service. Short commands may operate directly on local state. A worker process
+can be added for asynchronous agent runs and experiments without changing the
+domain model.
 
-## 3. Service Model
+## 3. Versioned Service and Provider Model
 
-A service is a logical capability contract. A provider implements that
-contract. A plugin packages a provider, policy, or event hook.
+A `ServiceRef` identifies a callable capability or artifact relevant to system
+behavior. At minimum it records:
 
-These concepts do not imply a process boundary:
+- provider and logical role;
+- immutable version, digest, or reproducible locator;
+- configuration that can affect behavior;
+- declared capabilities and access modes;
+- provenance and owner.
 
-- initial providers may be compiled into the `vri` binary;
-- an adapter may call an existing executable such as Herdr or Git;
-- a later provider may live behind a local socket or remote API;
-- moving a provider out of process must not change campaign semantics.
-
-Initial service boundaries:
-
-| Service | Responsibility | Initial provider |
-| --- | --- | --- |
-| `CampaignService` | Durable campaign lifecycle | built in |
-| `AgentService` | Translate work into an agent interface | arbitrary CLI |
-| `SessionService` | Start, send, wait, read, attach, resume, stop | Herdr; local fallback |
-| `EnvironmentService` | Compute, dependencies, network, isolation | host |
-| `WorkspaceService` | Working directory, branch, diff, checkpoint | Git worktree |
-| `ContextService` | Shared room, inbox, context snapshots | local filesystem |
-| `ArtifactService` | Artifact identity, blobs, and lineage | Git plus local blobs |
-| `EvalService` | Invoke and record user-owned verification | command |
-| `PolicyService` | Budgets, approval, promotion, stopping | built in, minimal |
-
-The service definition owns request and result types. Consumers depend on the
-definition, not on a specific provider.
-
-## 4. Execution Is a Composition
-
-Herdr, a local host, and Docker are not competing runtime modes. They occupy
-different axes:
+Providers may be built in, local executables, existing CLIs, containers, or
+remote APIs. The first provider contract needs only a small common shape:
 
 ```text
-Agent:        Codex / Claude Code / custom
-Session:      Herdr / native supervisor / other
-Environment:  host / Docker / microVM / remote machine
-Workspace:    directory / Git worktree / mounted volume / snapshot
-Context:      shared filesystem / room history / generated bundle
+describe -> capabilities and schemas
+resolve  -> immutable reference and effective configuration
+invoke   -> run reference, outputs, logs, cost, and status
 ```
 
-A local run may be:
+Optional capabilities such as `inspect`, `fork`, `mutate`, `snapshot`, or
+`stream` are discovered rather than assumed.
 
-```yaml
-agent: codex
-session: herdr
-environment: host
-workspace: git-worktree
-context: shared-filesystem
+Model, Data, Train, Serve, Eval, Environment, Harness, and Agent are semantic
+roles over this generic mechanism. vRI should not build a dedicated subsystem
+for each role until a concrete integration requires it.
+
+### System manifest
+
+A `SystemVersion` is an immutable manifest:
+
+```toml
+[system]
+agent = "agent.codex@resolved-version"
+environment = "environment.host@darwin-arm64"
+evaluator = "eval.command@sha256:..."
+
+[envelope]
+skills = "artifact.skills@sha256:..."
+context_policy = "artifact.context-policy@sha256:..."
+routing = "artifact.routing@sha256:..."
 ```
 
-A later isolated run may keep Herdr while changing only the environment:
+An improvement run binds the manifest and declares controlled mutability:
 
-```yaml
-agent: codex
-session: herdr
-environment: docker
-workspace: mounted-worktree
-context: mounted-shared-filesystem
+```toml
+[improvement]
+base = "system@sha256:..."
+mutable = ["envelope.skills", "envelope.context_policy"]
+fixed = ["agent", "environment"]
+protected = ["evaluator"]
 ```
 
-Capabilities such as snapshot and fork are reported by the selected provider;
-they are not assumed to exist everywhere.
+All components remain encapsulated. A mutable component changes only by
+producing a candidate reference; an agent does not overwrite the active
+version.
 
-## 5. Herdr Integration
+## 4. Initial Data Model
 
-Herdr already provides a mature local terminal and agent-session substrate:
+Exact SQL schemas should follow an executable specification, but the first
+vertical requires these records:
 
-- persistent terminal panes and human attach;
-- workspace and Git worktree operations;
-- agent start, prompt, read, wait, and status;
-- lifecycle detection for common CLI agents;
-- native agent session references and resume;
-- a JSON CLI, local socket API, and event subscriptions.
+| Record | Minimum purpose |
+| --- | --- |
+| `scope` | Boundary for experience, release, and assignment |
+| `service_ref` | Resolved provider, role, version, digest, configuration |
+| `system_version` | Immutable manifest of component references |
+| `episode` | One task using one resolved system version |
+| `experience` | Typed inference linked to source episodes |
+| `improvement_run` | Base system, mutable surfaces, improver, budget |
+| `candidate_change` | Structured delta and resulting system version |
+| `evaluation_run` | Exact candidate, baseline, tasks, evaluator, environment |
+| `evidence` | Measurements, uncertainty, failures, and artifact references |
+| `decision` | Human or policy judgment over evidence |
+| `release` | Approved components, constraints, and fallback |
+| `assignment` | Routing from a scope or task predicate to a release |
+| `resolution` | Exact system version selected for an episode |
+| `event` | Append-only audit record with actor and causal references |
 
-Herdr does not own vRI's durable research context, findings, experiment history,
-artifact provenance, or campaign decisions. Its agent-to-agent communication is
-terminal/session coordination rather than a durable research room.
+Experience records begin with a deliberately small taxonomy such as `failure`,
+`uncertainty`, `inefficiency`, `useful_method`, and `contradiction`. Free-form
+details remain artifacts rather than forcing an exhaustive ontology.
 
-Therefore Herdr should implement `SessionService` and optionally parts of
-`WorkspaceService`. It must not become the vRI domain model or the only possible
-session provider.
+Candidate changes should be structured deltas over a manifest. Skill and
+context changes may point to ordinary Git or content-addressed artifacts.
 
-The first integration should use Herdr's JSON CLI for simple operations. A raw
-socket subscriber should be added only when continuous lifecycle events are
-needed. vRI should not vendor or fork Herdr unless later evidence shows the
-public interfaces are insufficient.
+## 5. Context Substrate
 
-The decisive spike is:
+The first context system should make durable information addressable to an
+agent without forcing all history into its prompt.
+
+Agents may:
+
+- list and query episodes, experience, evidence, and artifacts;
+- open exact references from Bash or Python;
+- materialize a temporary context view;
+- write exploratory code that filters, joins, or summarizes history;
+- register a reusable query, skill, or context policy as a candidate change.
+
+The distinction between scratch state and method is important:
+
+- a temporary summary helps one run;
+- a saved transcript preserves history;
+- a versioned context strategy that is selected and validated on future tasks
+  is a candidate system improvement.
+
+The first interface can be CLI output and JSON files:
 
 ```text
-create workspace
-  -> start agent
-  -> send work
-  -> wait and read
-  -> attach as a human
-  -> recover or resume
+vri context list
+vri context query
+vri context open <ref>
+vri context materialize
 ```
 
-If this composition remains natural, Herdr can be the preferred local session
-provider. If vRI repeatedly works around Herdr's abstractions, it remains an
-optional adapter.
+An RLM-capable agent may call the same primitives from a persistent Python
+environment. Other agents can use their existing shell or Python tools. vRI
+does not require a new REPL or own context-compaction algorithm.
 
-## 6. Durable Shared Context
+Context provenance should record which references were made available and
+which materialized views were created. Measuring whether an agent actually used
+a method may initially require trace evidence or explicit instrumentation; mere
+presence in a prompt is insufficient.
 
-The local context model is a shared research room materialized into a filesystem
-volume. It borrows the useful property of a group chat: humans and agents share
-one continuing body of context and can resume where another participant left
-off.
+## 6. Agent, Session, and Workspace Integration
 
-The filesystem makes context legible to arbitrary CLI agents without a custom
-SDK:
+`AgentProvider` translates a task and resolved system version into the chosen
+agent's interface. It may expose only invoke and observe, or optional deeper
+mutation surfaces.
+
+Herdr should be reused for the capabilities it already implements:
+
+- start, prompt, wait, read, attach, interrupt, and resume agent sessions;
+- persistent terminal state;
+- worktree and workspace operations where its interfaces fit;
+- event subscriptions when continuous lifecycle events are needed.
+
+A single Herdr provider package may implement several vRI capability contracts.
+Calling it a session provider does not mean discarding its other useful
+features; it means that terminal and worktree semantics do not become vRI's
+improvement domain model.
+
+The first integration should prefer Herdr's stable JSON CLI. Direct socket
+integration is justified only by a measured need for streaming or lower
+latency. A simple native process provider remains useful as a baseline and for
+tests.
+
+Prime Agent can initially be treated like any other opaque agent. A deeper
+adapter may later import its structured continual-harness edits as
+`CandidateChange` records or expose its prompt, memory, skill, and subagent
+surfaces as mutable capabilities. That integration is optional.
+
+## 7. Experience-to-Method Transformation
+
+The first improver may itself be a BYO agent invoked with:
+
+- selected source episodes and experience;
+- the base system manifest;
+- the allowed mutable surfaces;
+- available evaluation and environment services;
+- budget and scope;
+- existing releases and known regressions.
+
+It returns one or more candidate deltas, rationale, expected outcome, and
+suggested evaluation. It may also return “no justified change.”
+
+The improver may proactively propose an experiment when uncertainty or missing
+evidence is high. The core records the proposal separately from authorization
+and execution. Initially a human authorizes resource-consuming work.
+
+Refinement should run asynchronously relative to normal agent use. Failure or
+latency in an improver must not block closing or starting an ordinary episode.
+
+## 8. Evaluation, Decision, and Release
+
+The first evaluator adapter runs arbitrary user-owned commands and records:
+
+- exact task set and held-out status;
+- baseline and candidate system versions;
+- evaluator and environment references;
+- raw outputs, scores, variance, cost, and failures;
+- agent and human interventions.
+
+Where practical, candidate-generation tasks and acceptance tasks are disjoint.
+Important claims should include regression and cost evidence rather than only a
+single best score.
+
+A decision consumes evidence but does not directly rewrite an active system.
+It may create a release containing:
+
+- one added or updated skill;
+- a task-family routing rule;
+- a scope constraint;
+- a cheaper default with a stronger fallback;
+- shadow or comparison traffic;
+- an expiration or review condition.
+
+Assignment resolution runs before each episode and records the resulting exact
+`SystemVersion`. Rollback disables or changes an assignment while preserving
+the release and its evidence.
+
+Eval-RSI remains a separate research branch. Its artifacts can later be exposed
+as versioned evaluator or portfolio services. An evaluator proposed by the
+optimized system cannot approve itself.
+
+## 9. State and Files
+
+Use SQLite for normalized current projections and an append-only event history.
+A state-changing command updates projection rows and appends its event in one
+transaction.
+
+Use:
+
+- Git for source, skill, and configuration artifacts where natural;
+- content-addressed files for manifests, context views, logs, and outputs;
+- URI plus digest references for large or remote objects.
+
+A tentative local layout is:
 
 ```text
 .vri/
 ├── vri.db
-├── shared/
-│   ├── brief.md
-│   ├── findings/
-│   ├── decisions/
-│   ├── evals/
-│   ├── inbox/
-│   │   └── <agent-id>/
-│   └── artifacts/
-├── contexts/
-│   └── <run-id>.md
-└── blobs/
+├── objects/
+├── manifests/
+├── runs/
+└── views/
 ```
 
-Responsibilities:
+Human-readable reports and agent-facing views are projections. They are not
+independent sources of truth and do not require a permanent shared-room,
+inbox, or cursor abstraction.
 
-- `vri.db` stores canonical coordination state and the event history;
-- `shared/` contains human-readable shared material;
-- `contexts/<run-id>.md` is the immutable context snapshot given to one run;
-- `blobs/` contains content-addressed logs and outputs;
-- each agent has an inbox and a cursor into the shared event stream.
+## 10. CLI and Process Shape
 
-The full history remains available for pull-based search. Context providers may
-push a relevant slice to an agent, but no summarizer is trusted to be the only
-route to older information.
-
-Agents may edit ordinary workspace files directly. Mutations that should enter
-the durable research graph are registered through vRI commands so actor,
-causality, and provenance are preserved. Generated filesystem views should not
-be treated as an independent source of truth.
-
-Start with paths, explicit references, tags, SQLite full-text search, and normal
-filesystem search. Do not add a vector database before real context-retrieval
-failures show that it is necessary.
-
-## 7. State and Storage
-
-Use SQLite for both normalized current-state projections and an append-only
-event history. A command updates its projection rows and appends its audit event
-in the same transaction.
-
-This is not a commitment to pure event sourcing. The event history exists for
-inspection, causality, recovery, and future projections; normal relational
-queries serve the current state.
-
-Use:
-
-- Git and worktrees for source artifacts;
-- content-addressed local files for logs, context snapshots, and small outputs;
-- URI plus digest metadata for large datasets, model weights, or remote objects.
-
-The local database and object files can later map to PostgreSQL and object
-storage without changing object identity or service contracts.
-
-## 8. Agent-Facing Interface
-
-The CLI is the first user and agent interface. The tentative surface is:
+The first interface is CLI-first and scriptable:
 
 ```text
 vri init
-vri run
-vri send
-vri publish
-vri artifact
-vri eval
-vri context
+vri system show|diff|resolve
+vri episode start|finish|show
+vri experience record|list
+vri improve propose|run
+vri candidate show|diff
+vri eval run|compare
+vri decide
+vri release create|disable
+vri assignment set|resolve
 vri status
-vri attach
-vri stop
 ```
 
-The CLI talks to the local vRI process. Agents can use it from a shell without
-special integration. An MCP surface may expose the same capabilities later, but
-MCP is an adapter rather than the internal domain protocol.
+These names are sketches, not a public compatibility promise. A generated skill
+can teach arbitrary coding agents the same surface. An SDK or MCP adapter may
+wrap it after the object model proves useful.
 
-There is no graphical interface in the initial version. Human interaction uses
-the CLI and Herdr's existing attach experience.
+A background worker becomes useful for proactive experiments, long evaluations,
+and scheduled improvement. It should be optional in the first explicit loop and
+must communicate through the same durable commands. A Web UI is deferred until
+observing evidence, comparison, routing, and approvals through generated
+reports proves inadequate.
 
-## 9. Plugin Shape
+## 11. Initial Stack
 
-DeepSeek Harness demonstrates the value of service definitions, replaceable
-providers, typed events, and append-only run history. vRI should borrow those
-principles without adopting a large general-purpose harness as its core.
-
-Initial providers should be built in or implemented as thin adapters. When an
-external plugin protocol becomes necessary, begin with a small manifest and
-JSON request/result contract, for example:
-
-```toml
-id = "session.herdr"
-provides = ["session"]
-command = ["vri-provider-herdr"]
-```
-
-Do not begin with an in-process binary ABI, hot reloading, a package registry,
-or a complex plugin dependency graph.
-
-The kernel itself is not replaceable. It owns global identifiers, event
-ordering, transactions, causal references, artifact identity, permissions, and
-provenance. Providers extend capabilities within those invariants.
-
-## 10. Initial Stack
-
-- Go for the core process and CLI;
+- Go for the durable core and CLI;
 - SQLite for state and events;
-- the local filesystem for context and blobs;
-- Git CLI and worktrees for code artifacts;
-- TOML for configuration and provider manifests;
-- local socket plus JSON for local control;
-- Herdr as the first session provider;
-- arbitrary commands as the first agent and evaluator adapters.
+- local content-addressed storage for small objects;
+- Git for source-oriented artifacts;
+- TOML for human-authored manifests and provider configuration;
+- JSON for command and external-provider request/results;
+- existing Bash and Python environments for agent-programmable context work;
+- Herdr and a native process runner as early agent/session providers;
+- arbitrary commands as the first evaluator adapter.
 
-This stack optimizes for a small installation, inspectable state, and the
-ability to replace providers later.
+Provider boundaries should be tested in-process or through existing CLIs before
+designing a plugin registry, binary ABI, or remote control protocol.
 
-## 11. Local and Managed Evolution
+## 12. Validation Plan
 
-The local and managed versions should share the same objects and service
-semantics:
+The first study compares vRI with the realistic baseline of normal agent use,
+Git, worklogs, hand-written skills, and manual evaluation.
 
-| Capability | Local | Managed |
-| --- | --- | --- |
-| State | SQLite | PostgreSQL |
-| Blobs | local filesystem | object storage |
-| Session | Herdr or native | managed agent session |
-| Environment | host or Docker | sandbox or remote compute |
-| Context | local shared volume | mounted or synchronized volume |
-| Interface | local CLI/socket | CLI/SDK over authenticated API |
+It should test:
 
-Managed infrastructure should be introduced only after the local workflow is
-useful. Distribution is a provider and deployment concern, not a reason to
-change the research model.
+1. whether experience can produce a concrete method change rather than another
+   note or summary;
+2. whether the change improves held-out future tasks at matched cost;
+3. whether the system routes the method only to its intended scope and records
+   actual resolution;
+4. whether the old method remains usable as fallback and rollback is lossless;
+5. whether another human can reproduce the evidence and explain the decision;
+6. whether normal agent use continues when improvement work fails or is slow.
 
-## 12. Immediate Validation
+The generic service-graph claim earns confidence only if the same manifest,
+controlled-mutability, evidence, and release model later handles a second
+vertical such as a stable training factory with a mutable data or algorithm
+slot.
 
-The first implementation work should answer three questions:
+Early measurements include:
 
-1. Does Herdr remove most session and terminal lifecycle work without leaking
-   terminal-specific details into the vRI domain model?
-2. Can a second agent resume useful work from the shared volume and a bounded
-   context snapshot without receiving the full transcript?
-3. Can a human reconstruct why an artifact changed from the event, finding,
-   evaluation, and decision records?
+- held-out task success, regression, cost, and variance;
+- fraction of experience that yields tested candidates;
+- candidate acceptance and later rollback rates;
+- transfer across tasks, time, and scopes;
+- whether released methods were actually selected and used;
+- human time spent verifying and routing improvements;
+- improvement latency that leaks into the ordinary-use path.
 
-These checks are more important than implementing a broad plugin system or
-additional infrastructure providers.
+If the vRI path does not outperform the baseline, the response is to narrow the
+design rather than add orchestration features.
 
 ## References
 
 - [Herdr](https://github.com/herdrdev/herdr)
 - [Herdr agent automation](https://herdr.dev/docs/agent-automation/)
-- [Herdr socket API](https://herdr.dev/docs/socket-api/)
-- [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)
-- [DeepSeek Harness service design](https://deepseek-harness.github.io/deepseek-harness/en/develop/practice/)
+- [Prime Agent](https://github.com/PrimeIntellect-ai/prime-agent)
+- [Prime Agent RLM](https://github.com/PrimeIntellect-ai/prime-agent/blob/main/packages/coding-agent/docs/rlm.md)
+- [Prime Agent continual refinement](https://github.com/PrimeIntellect-ai/prime-agent/blob/main/packages/coding-agent/src/core/refinement/refinement.ts)

@@ -1,45 +1,73 @@
 # vRI
 
-**A human-supervised research runtime for agents.**
+**A bring-your-own-agent runtime for improving how agent systems work.**
 
-vRI helps people and AI agents run long-lived research and artifact-improvement
-work without losing the reasoning, experiments, and state that produced each
-version.
+Agents already complete useful tasks, but ordinary use rarely compounds into a
+better system. Saving a trajectory or writing a lesson preserves experience; it
+does not show that the agent has learned a better method or that the method
+helps on tasks it has not seen before.
 
-Today, capable agents can already write code, change prompts, analyze data, and
-run experiments. The harder problem is coordinating those agents over time:
+vRI explores the missing loop:
 
-- context disappears when an agent session ends;
-- parallel agents duplicate work or overwrite one another;
-- hypotheses, experiments, and decisions are scattered across chats and shells;
-- humans cannot easily inspect, interrupt, reproduce, or resume the process;
-- apparent improvements are difficult to trace back to evidence.
+```text
+ordinary agent use
+  -> experience and observed weakness
+  -> candidate method change
+  -> independent evaluation
+  -> scoped release and routing
+  -> future agent use
+```
 
-vRI treats agents as replaceable workers and **research state as the durable
-system of record**.
+The agent may be Codex, Claude Code, Prime Agent, a custom CLI, or another
+runtime. vRI does not require access to its internal reasoning or harness. It
+can improve the larger system around an opaque agent: skills, context
+strategies, tools, services, environments, routing, workflows, and eventually
+the mechanism that proposes improvements.
 
-## What vRI aims to provide
+## Working thesis
 
-- Bring-your-own agent, model, evaluator, and compute.
-- Flexible research behavior without a prescribed agent loop.
-- Persistent, inspectable agent sessions with human intervention.
-- Structured context and handoffs between agents.
-- Versioned artifacts, experiments, evidence, and decisions.
-- Branching, comparison, replay, and rollback of research work.
-- Pluggable verification rather than a built-in claim about what is "better."
+- **Experience is input, not learning.** A trace matters only if it can produce
+  a method change whose benefit survives independent, future evaluation.
+- **The unit of improvement is the agent system.** A system version composes an
+  agent with a versioned improvement envelope rather than treating the model as
+  the only mutable component.
+- **Agents choose the workflow.** vRI exposes reliable, programmable
+  capabilities through CLI, skills, and service adapters instead of imposing a
+  universal improvement pipeline.
+- **Verification governs accumulation.** Evidence, judgment, release, routing,
+  and rollback are distinct. A candidate does not become the new global
+  default merely because it won one comparison.
+- **Everything may be referenced as a service; vRI does not implement
+  everything.** Users bring agents, models, training, serving, evaluation, and
+  compute. vRI records their exact versions and controls which surfaces are
+  fixed, mutable, or protected in an improvement run.
 
-vRI is not intended to be another foundation model, coding agent, training
-framework, or sandbox implementation. It is the control plane connecting those
-systems into a coherent research workflow.
+A successful promotion may add one skill, change routing for one task family,
+enable a workflow only within one scope, or retain an older method as a cheap
+path or fallback. Improvement is therefore compositional and contextual, not a
+single sequence of replacements.
+
+## Initial direction
+
+The first vertical keeps a bring-your-own agent opaque and allows an improver
+to change its external skills, context strategy, and environment. The system
+must then evaluate the candidate on unseen future tasks, release it to a
+defined scope, resolve the correct system version for a later episode, and
+retain enough evidence to explain or reverse the decision.
+
+Eval-RSI is a related research branch concerned with discovering weaknesses and
+improving the mechanisms that judge improvement. It may later provide versioned
+evaluation services to the main loop, but it is not the initial product scope.
 
 ## Status
 
-vRI is at the design stage. The current documents describe a working thesis,
-not a frozen specification:
+vRI is an ongoing, pre-stable design project. The current documents are working
+hypotheses to be tested against real use, not compatibility commitments.
 
 - [System design](docs/DESIGN.md)
 - [Initial technical plan](docs/TECHNICAL_PLAN.md)
 - [Roadmap](ROADMAP.md)
+- [Experience-grounded eval evolution proposal](docs/EVAL_RSI_PROPOSAL.md)
 
 ## License
 
