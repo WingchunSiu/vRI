@@ -1,9 +1,8 @@
 # vRI System Design
 
 > Status: early design. This document defines the product and its invariants.
-> [CORE_DESIGN.md](CORE_DESIGN.md) describes the smaller storage skeleton that
-> exists today; [TECHNICAL_PLAN.md](TECHNICAL_PLAN.md) describes the next
-> implementation slice.
+> [STORAGE.md](STORAGE.md) describes the implemented storage contract, and
+> [ROADMAP.md](ROADMAP.md) names the next claim to test.
 
 ## 1. Product
 
@@ -312,22 +311,9 @@ Agent autonomy operates inside explicit boundaries:
 Only consequential transitions require durable structure. vRI need not record
 every thought, terminal keystroke, or agent-to-agent message as a domain object.
 
-## 9. Current scope
+## 9. Non-goals
 
-The first vertical is a coding-agent eval researcher that uses real sessions,
-repositories, existing evaluations, representative systems, and limited human
-judgment. It should support both personal and organizational benchmark work.
-
-The first credible product result is not a large benchmark. It is one useful
-evaluation investigation in which the system:
-
-1. finds relevant prior evidence without rereading all sessions;
-2. chooses or clarifies a meaningful question;
-3. uses Herdr and Harbor to investigate, build, run, and iterate;
-4. explains an important result from artifacts rather than score alone;
-5. retains a supported experience item that improves a later investigation.
-
-Initial non-goals:
+The current design does not include:
 
 - a foundation model or universal agent interface;
 - a universal semantic trajectory schema;
@@ -338,23 +324,6 @@ Initial non-goals:
 - online model-weight learning as a prerequisite;
 - claims of open-ended RSI.
 
-## 10. Open questions
-
-- What is the smallest index that saves more agent work than it costs to
-  maintain?
-- Which experiences should be retrieved automatically, and which should
-  require active search?
-- What outcome signals can distinguish a useful eval-research method from a
-  polished but low-value one?
-- How should private sessions and production evidence be retained, redacted,
-  and shared across scopes?
-- Which Herdr events and native session integrations are sufficient for the
-  first managed loop?
-- Can the Eval Researcher System outperform direct prompting plus Harbor at a
-  matched budget?
-- Which parts of curation taste transfer across users or organizations?
-- Which contracts, if any, generalize beyond evaluation work?
-
 ## References
 
 - [Herdr concepts](https://herdr.dev/docs/concepts/)
@@ -363,5 +332,4 @@ Initial non-goals:
 - [Herdr session state and restore](https://herdr.dev/docs/session-state/)
 - [Herdr multi-machine operation](https://herdr.dev/docs/connecting-machines/)
 - [Harbor](https://github.com/harbor-framework/harbor)
-- [Eval researcher proposal](EVAL_RSI_PROPOSAL.md)
 - [RSI roundtable research notes](research-notes/2026-09-11-dwarkesh-rsi-roundtable.md)

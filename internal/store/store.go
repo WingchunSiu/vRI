@@ -1,5 +1,5 @@
 // Package store owns the .vri directory: the SQLite database and the three
-// tables (objects, records, relations) defined by docs/CORE_DESIGN.md.
+// tables (objects, records, relations) defined by docs/STORAGE.md.
 // Reference integrity is enforced by the app layer, not here.
 package store
 

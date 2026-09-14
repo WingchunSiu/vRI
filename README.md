@@ -99,10 +99,8 @@ or manage the Eval Researcher in Herdr, autonomously perform an investigation,
 or demonstrate transfer from retained experience.
 
 - [System design](docs/DESIGN.md)
-- [Eval researcher proposal](docs/EVAL_RSI_PROPOSAL.md)
-- [Initial technical plan](docs/TECHNICAL_PLAN.md)
 - [Roadmap](docs/ROADMAP.md)
-- [Current v0 storage contract](docs/CORE_DESIGN.md)
+- [Current storage contract](docs/STORAGE.md)
 - [RSI research notes](docs/research-notes/2026-09-11-dwarkesh-rsi-roundtable.md)
 
 ## License

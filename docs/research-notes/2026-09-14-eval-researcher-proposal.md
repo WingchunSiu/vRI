@@ -1,10 +1,8 @@
-# Proposal: An Eval Researcher That Learns From Experience
+# Historical Proposal: An Eval Researcher That Learns From Experience
 
-> Status: research and product proposal. The first local study is ready for
-> human review, but it is not yet an approved benchmark and does not demonstrate
-> continual learning. Its raw evidence remains local. [DESIGN.md](DESIGN.md)
-> defines the system boundaries;
-> [TECHNICAL_PLAN.md](TECHNICAL_PLAN.md) defines the next implementation slice.
+> Status: historical research note retained for rationale and related work; it
+> is not a maintained product contract. See [DESIGN.md](../DESIGN.md) for the
+> current system boundary and [ROADMAP.md](../ROADMAP.md) for current work.
 
 ## 1. The problem
 
@@ -172,7 +170,7 @@ processes alive across local or remote hosts and coordinate their work. Harbor
 can execute evaluations. vRI supplies the shared evidence and experience
 substrate across those sessions and systems.
 
-The detailed boundary is in [DESIGN.md](DESIGN.md). The current three-table
+The detailed boundary is in [DESIGN.md](../DESIGN.md). The current three-table
 store is an implementation starting point, not the product ontology.
 
 ## 6. What “valid” means

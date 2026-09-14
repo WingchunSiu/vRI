@@ -1,5 +1,5 @@
 // Command vri is the vRI v0 CLI: a local evidence store for the
-// personalized-benchmark loop. See docs/CORE_DESIGN.md for the contract.
+// personalized-benchmark loop. See docs/STORAGE.md for the contract.
 package main
 
 import (
@@ -355,7 +355,7 @@ func cmdRecord(args []string) error {
 	switch args[0] {
 	case "put":
 		fs := flag.NewFlagSet("record put", flag.ContinueOnError)
-		typ := fs.String("type", "", "record type (see docs/CORE_DESIGN.md)")
+		typ := fs.String("type", "", "record type (see docs/STORAGE.md)")
 		file := fs.String("file", "", "read payload from file")
 		data := fs.String("json", "", "payload as inline JSON")
 		actor := fs.String("actor", "user", "who is writing the record")

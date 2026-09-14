@@ -3,9 +3,8 @@
 > Status: this document describes the implemented Go storage and query
 > skeleton. It is not the product architecture. The local study that motivated
 > it is ready for review, not approved or released, and intentionally untracked.
-> See [DESIGN.md](DESIGN.md) for
-> the eval-researcher system and [TECHNICAL_PLAN.md](TECHNICAL_PLAN.md) for the
-> next slice.
+> See [DESIGN.md](DESIGN.md) for the eval-researcher system and
+> [ROADMAP.md](ROADMAP.md) for the next claim to test.
 
 ## 1. Why this skeleton exists
 
@@ -209,7 +208,6 @@ These are observed correctness gaps, not speculative future features:
 6. **Retrieval scale:** context query currently scans the small local store and
    has no ranking or rebuildable FTS index. Context materialization is present,
    but method comparison and automatic context-policy evaluation are not.
-
 7. **Researcher runtime:** the repository includes an initial eval-researcher
    skill, but no Herdr launcher or adapter and no completed autonomous vertical.
 
