@@ -57,5 +57,11 @@ data or leave a partial migration.
 - Test in proportion to risk.
 - Report what was verified, what remains assumed, and what is still unknown.
 
+When reviewing code, judge the change as a complete user outcome. Confirm that
+the design and behavior are coherent, any UI is usable and visually sound,
+concurrent code handles shared state safely, and names are precise. Reject
+unnecessary complexity and speculative features. Require focused unit tests for
+public behavior, important invariants, and meaningful failure paths.
+
 The standard for completion is not that code exists. The relevant user path
 should work and the result should be easier to understand and maintain.
