@@ -1,0 +1,10 @@
+.vri/
+
+# Local research evidence may contain machine paths, private sessions, and
+# provider-native logs. Keep it outside the public repository.
+fixtures/personal-bench-001/
+
+# Generated task artifacts are not part of a reproducible task package.
+__pycache__/
+*.py[cod]
+.DS_Store
