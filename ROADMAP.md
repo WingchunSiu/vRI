@@ -1,181 +1,169 @@
 # vRI Roadmap
 
-> This roadmap orders learning, not just implementation. Each phase must earn
-> the complexity of the next one.
+> This roadmap orders evidence. A phase is complete only when its user path and
+> research claim have been checked; implementation activity alone is not an
+> exit condition.
 
-## Product hypothesis
+## Product goal
 
-Agent use can become a compounding improvement process if a system can:
+Build an Eval Researcher System that can perform high-quality evaluation work
+and improve how it performs that work from experience.
 
-1. turn grounded experience into candidate changes to how the agent system
-   works;
-2. verify those changes independently on future or held-out tasks;
-3. compose and route accepted methods within appropriate scopes;
-4. preserve fallback, rollback, provenance, and human judgment;
-5. eventually improve the mechanism that proposes and evaluates changes.
+The first workload is benchmark construction and maintenance. The same system
+should serve an individual building a benchmark from personal workflows and an
+organization building internal evaluations from product requirements,
+production failures, domain expertise, and existing suites.
 
-The realistic baseline is ordinary agent sessions plus Git, worklogs,
-hand-written skills, and manual evaluation. Persistent traces or cleaner
-multi-agent handoffs alone are not sufficient product evidence.
+The practical baseline is direct prompting of a strong agent plus native
+session history, Git, Harbor or another eval backend, and manual notes.
 
-## Phase 0: Manual loop and executable specification
+## Phase 0: Grounded local study and storage skeleton
 
-Run the proposed loop by hand on real work:
+Status: **review-ready, not complete**.
 
-- select one opaque agent and one recurring task distribution;
-- record exact system versions and episodes;
-- identify experience that may justify a reusable method change;
-- produce candidate skill, context, or routing changes;
-- compare candidates with the baseline on unseen tasks;
-- make explicit scoped-release and fallback decisions;
-- run later episodes through the selected release;
-- document where existing tools already suffice.
+A local, intentionally untracked study demonstrates one manual path:
 
-Represent the minimum records in fixtures and CLI acceptance tests before
-stabilizing schemas.
+```text
+real verifier repair
+  -> candidate Harbor task
+  -> oracle, nop, and two model runs
+  -> trajectory-level failure attribution
+  -> benchmark candidate and review packet
+```
 
-**Exit condition:** at least one change derived from experience produces a
-reproducible improvement on future tasks, and every required object and human
-decision can be named without relying on a chat transcript.
+This establishes that real work can produce a runnable task and that trajectory
+inspection can explain a score that would otherwise be misleading. It does not
+establish that the task represents the user's desired benchmark distribution,
+that the comparison is statistically stable, or that vRI produced the
+attribution autonomously. User review remains pending.
 
-## Phase 1: Explicit local improvement loop
+The Go walking skeleton stores content-addressed objects and typed records,
+ingests selected Harbor artifacts, and exposes basic run, review, and release
+commands. It was extracted from that study but is not yet the Eval Researcher
+System.
 
-Build one local, CLI-first vertical:
+**Exit condition:** record the user's actual benchmark decision in the local
+study and preserve it as an approved, revised, or rejected case. The
+implementation gaps below remain Phase 1 work regardless of that decision.
 
-- register immutable service and artifact references;
-- resolve an opaque BYO agent plus its improvement envelope into a
-  `SystemVersion`;
-- record episodes and source-linked experience;
-- invoke a BYO improver with declared mutable surfaces and budget;
-- store candidate deltas without overwriting the active version;
-- run user-provided baseline and candidate evaluations;
-- record evidence separately from a human decision;
-- create a scoped release with routing and fallback;
-- resolve the release for a subsequent episode;
-- disable or roll back an assignment without losing lineage.
+## Phase 1: Trustworthy experience and evidence substrate
 
-Use SQLite, Git, content-addressed files, and command adapters. A native process
-runner is the baseline; reuse Herdr for session and workspace capabilities where
-its interfaces fit. No Web UI or distributed runtime is required.
+Make the current local core safe enough to support a real agent:
 
-**Exit condition:** a complete cross-generation loop works locally and an
-independent reviewer can reproduce why the later episode received its resolved
-method.
+- bind each run to the task identity captured by Harbor at execution time;
+- ingest incomplete and infrastructure-failed jobs without requiring a
+  successful verifier directory;
+- retain arbitrary raw artifacts or stable URI-plus-digest references instead
+  of relying on a closed artifact allowlist;
+- represent multiple trials and distributions such as pass@k without
+  overwriting results;
+- keep experiment authorization separate from candidate selection and release;
+- exclude generated files from task packages and content identities;
+- add full-text and metadata search over source material and derived experience;
+- materialize task-specific context views while preserving links to raw
+  evidence.
 
-## Phase 2: Agent-programmable context and active experiments
+Keep the physical design small: content-addressed files, SQLite records and
+relations, and rebuildable indexes. Do not introduce a universal trace schema
+or one table per domain noun.
 
-Let agents work with experience rather than merely receive summaries:
+**Exit condition:** a copied or moved store can reproduce a representative
+task, run identities, evidence, review state, and decision without relying on
+mutable source directories.
 
-- query episodes, experience, artifacts, and evidence from Bash or Python;
-- materialize provenance-linked context views;
-- register reusable context strategies as candidate methods;
-- measure whether released methods were selected and actually used;
-- let an agent propose experiments from uncertainty, contradictions, or missing
-  evidence;
-- separate proposal, authorization, execution, and decision;
-- run improvement jobs asynchronously without blocking ordinary use.
+## Phase 2: Herdr-managed eval researcher vertical
 
-An RLM may use these capabilities from a persistent REPL, but vRI must also work
-with agents that expose only shell, files, or a simple request API.
+Run the primary eval researcher inside Herdr and connect it to the durable
+substrate and Harbor:
 
-**Exit condition:** a context or experiment strategy learned from prior
-experience transfers to held-out tasks more reliably than stored notes or a
-static context package.
+- address the runtime by host, Herdr session, workspace, pane, agent identity,
+  and native agent session reference;
+- use native Codex, Kimi, Claude, or other transcript stores when available;
+  record terminal-only capture as partial;
+- let the researcher query relevant prior evidence and experience rather than
+  rereading all sessions;
+- let it start and coordinate helper agents, run ordinary processes, wait on
+  lifecycle events, inspect outputs, and resume long-lived work;
+- let it invoke Harbor, inspect failed trials, modify tasks or verifiers, and
+  rerun without leaving the research loop;
+- retain only consequential inputs, outputs, findings, and decisions; do not
+  turn every pane event or agent message into a domain record.
 
-## Phase 3: Versioned service graph and controlled mutability
+Exercise two uses of the same agent: one personal benchmark task and one
+organization-shaped task using product or domain evidence. The second case
+tests permissions and review, not a separate product architecture.
 
-Test the broader “everything addressable as a service” hypothesis:
+**Exit condition:** the system completes a useful eval investigation with less
+manual history navigation and coordination than direct prompting plus Harbor,
+and an independent reviewer can trace the important conclusion to raw evidence.
 
-- define small provider contracts and capability discovery;
-- record fixed, mutable, and protected components per improvement run;
-- integrate external model, data, train, serve, eval, and environment services
-  without implementing those systems in vRI;
-- add a second vertical such as a stable training factory with a mutable data
-  recipe or algorithm plug-in;
-- measure single-surface changes before testing important interactions;
-- bind service versions, configuration, environment, and cost to evidence.
+## Phase 3: Continual learning of evaluation work
 
-**Exit condition:** two materially different verticals use the same system
-manifest, candidate, evaluation, and release semantics without domain-specific
-changes to the core.
+Test whether accumulated experience changes later performance:
 
-## Phase 4: Parallel search and managed operation
+- retain supported findings, repair procedures, context queries, delegation
+  strategies, and benchmark-design judgments with scope and status;
+- compare a stateful researcher with the same system under a stateless or prior
+  method condition;
+- freeze a candidate method before evaluation on new source material;
+- measure task quality, attribution accuracy, expert correction, time, and
+  total cost rather than memory volume;
+- use later benchmark defects, user decisions, and real workflow outcomes to
+  support, narrow, contradict, or retire experience;
+- maintain benchmark versions as models saturate tasks and product
+  distributions change.
 
-Add scale only where observed workloads require it:
+**Exit condition:** retained experience or a changed method improves later eval
+work on source material not used to produce or select it, at a matched budget.
 
-- bounded multi-agent candidate generation and independent critique;
-- worktrees, containers, sandboxes, or remote environments through providers;
-- conflict and duplicate-work detection;
-- adaptive experiment budgets and cancellation;
-- durable background workers and recovery;
-- organization scopes, credentials, quotas, and audit policy;
-- PostgreSQL and object-storage providers;
-- a review UI if CLI reports no longer support judgment efficiently.
+## Phase 4: Governed recursive improvement
 
-Reuse agent-runtime orchestration rather than prescribing a universal team
-topology. Multi-agent work is one search strategy over the same durable
-improvement protocol.
+Let the Eval Researcher System propose changes to its own skills, context and
+memory policies, tools, harness, delegation strategy, and curation method.
 
-**Exit condition:** parallel or managed execution increases validated
-improvement throughput without weakening attribution, evidence quality, or
-human control.
+- evaluate each change against the current strong system and matched extra
+  attempts;
+- keep acceptance evidence protected from the system that produced the change;
+- release changes to narrow scopes with fallback and expiration;
+- measure whether a changed system becomes better at producing future validated
+  changes, not merely better on the task that triggered it;
+- add organization-level access control, remote workers, budgets, and review
+  only when the working loop requires them.
 
-## Phase 5: Governed recursive improvement
+**Exit condition:** a later researcher system improves the rate, quality, or
+cost of future validated evaluation improvements on unexposed work.
 
-Open deeper mutation surfaces cautiously:
+## Phase 5: Test the general vRI hypothesis
 
-- version and evaluate the improver itself;
-- compare improvement policies on held-out improvement tasks;
-- compose several compatible releases and measure interactions;
-- support joint service optimization with fixed anchor evaluations;
-- admit evaluator changes only through independent meta-evaluation;
-- measure persistence, transfer, cost, regression, and multi-generation gain;
-- allow wider autonomous experiment budgets only when prior calibration
-  supports them.
+Only after the eval-researcher vertical works, try a materially different
+target such as a software method, data recipe, or training algorithm. Extract
+shared service, exposure, evidence, and release contracts from the two working
+applications instead of generalizing the eval workflow in advance.
 
-Eval-RSI is the focused research branch for weakness discovery, evaluator
-repair, portfolio evolution, and protected acceptance. Its validated outputs
-may become `EvalService` implementations or service versions in this phase.
+**Exit condition:** the second target reuses the same small contracts without
+forcing domain behavior into the core.
 
-**Exit condition:** a later system is demonstrably better at producing
-validated future improvements, not merely better at the task used to modify it.
+## Measurements
 
-## Early success metrics
+- time and user effort to find relevant prior evidence;
+- fraction of important conclusions traceable to sufficient artifacts;
+- task, verifier, environment, and attribution defect rates;
+- expert-rated importance and portfolio contribution of selected tasks;
+- predictive value on held-out or temporally later real work;
+- human review time per accepted, useful evaluation;
+- gain from retained experience or a new method over the stateless/current
+  baseline at matched cost;
+- latency or failures imposed on ordinary agent use.
 
-- Held-out and temporally later task improvement at matched cost.
-- Regression and rollback rate after release.
-- Fraction of accepted methods actually selected and used.
-- Transfer across repositories, task families, agents, and time.
-- Human judgment time per validated improvement.
-- Candidate throughput versus validated-improvement throughput.
-- Fraction of results with reproducible system, evaluator, and environment
-  resolution.
-- Ordinary-use latency or failures caused by background improvement.
+## Narrow or stop if
 
-## Falsification and narrowing conditions
-
-Narrow or change the design if:
-
-- stored experience rarely yields concrete candidate methods;
-- proposed methods do not beat simple hand-written skills or worklogs on unseen
-  tasks;
-- scoped routing adds more complexity than value;
-- provider abstraction repeatedly hides important domain semantics;
-- independent evaluation dominates the workflow but cannot be made affordable;
-- users prefer existing agent-native continual harnesses without needing an
-  outer control layer;
-- a second vertical cannot reuse the core model without extensive special
-  cases.
-
-The response to these results is not to add more orchestration or services.
-
-## Explicitly deferred
-
-- a custom foundation model or universal agent;
-- a universal verifier;
-- a new sandbox, trainer, serving stack, or cluster scheduler;
-- automatic global replacement of accepted candidates;
-- a mandatory RLM or agent-internal harness;
-- an elaborate workflow language or agent-team topology;
-- a Web UI before the review workflow demonstrates its need;
-- open-ended autonomous RSI claims.
+- indexing and retrieval do not beat direct agent search over native sessions;
+- the researcher cannot choose useful directions without the user specifying
+  nearly the full benchmark;
+- Harbor plus ordinary scripting reaches the same outcome with comparable
+  effort and reliability;
+- retained experience does not improve later eval work;
+- human review requires experts to redo nearly all agent work;
+- the evidence model discards important provider-native information or forces
+  domains into unnatural workflows;
+- a second target cannot reuse the core without extensive special cases.

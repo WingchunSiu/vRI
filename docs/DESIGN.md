@@ -1,424 +1,367 @@
 # vRI System Design
 
-> Status: early working draft. This document records the current main thesis
-> and the boundaries that appear stable enough to test. Object names, APIs, and
-> deployment choices remain provisional.
+> Status: early design. This document defines the product and its invariants.
+> [CORE_DESIGN.md](CORE_DESIGN.md) describes the smaller storage skeleton that
+> exists today; [TECHNICAL_PLAN.md](TECHNICAL_PLAN.md) describes the next
+> implementation slice.
 
-## 0. Design Status
+## 1. Product
 
-vRI began as a control plane for long-running, multi-agent research campaigns.
-That work exposed useful infrastructure concerns, but persistence and
-coordination alone do not constitute self-improvement. The current design
-centers on the harder loop between ordinary use, method change, independent
-verification, and future use.
+vRI is building an **Eval Researcher System** that can perform evaluation work
+and improve how it performs that work from experience.
 
-### Relatively stable decisions
+The system includes the primary agent, its model and harness, tools, skills,
+context and memory policies, environment, and any helper agents. It should be
+able to:
 
-- Bring-your-own agents are replaceable providers. vRI must work when an
-  agent's internal harness is opaque.
-- Experience, candidate changes, evidence, decisions, releases, and assignments
-  are distinct records.
-- The unit being evaluated is a versioned agent system, not necessarily a model
-  or one agent binary.
-- Improvement is scoped and compositional. Accepting a candidate does not imply
-  globally replacing every older method.
-- Agents should be free to compose capabilities and propose experiments without
-  following a fixed workflow.
-- Evaluators, environments, agents, models, and other dependencies must be
-  referenced by exact versions where they affect an improvement claim.
-- vRI should reuse external runtimes and infrastructure through capability
-  boundaries rather than implementing the whole AI stack.
+- investigate what a user or organization should measure;
+- collect evidence from real workflows, existing evaluations, and domain
+  knowledge;
+- construct, run, inspect, and repair tasks, environments, rubrics, and
+  verifiers;
+- explain model, harness, environment, and evaluation failures separately;
+- assemble and maintain benchmarks when that is the useful outcome;
+- retain useful experience and test changes to its own working method.
 
-### Current working hypotheses
+Benchmark construction is the first workload because it is important, costly,
+and unusually dependent on judgment. A benchmark is one output of the system,
+not the definition of the product.
 
-- A useful first product is an outer improvement runtime around opaque agents:
-  it changes skills, context strategies, tools, services, routing, and
-  environments, then tests whether those changes help on later unseen tasks.
-- A versioned service graph can represent both production systems and controlled
-  improvement experiments. Each run declares which service slots are fixed,
-  mutable, or protected.
-- Context should be an agent-queryable computational substrate, not only a
-  prompt assembled in advance.
-- Verifier evolution is important enough to study independently, but it should
-  enter the main system through a protected, versioned evaluation service.
+Individuals and organizations use the same core. An individual may want a
+small benchmark based on personal workflows for comparing new models. An
+organization may use the system to create and maintain internal benchmarks,
+debug evaluation failures, support release gates, or investigate product and
+model weaknesses. Their data, scale, permissions, and review policies differ;
+the underlying eval-research capabilities do not.
 
-### Still unresolved
+## 2. Problem
 
-- Whether the long-lived organizing object should be called a scope, program,
-  campaign, or system family.
-- Which experience-to-method transformations generalize beyond one agent,
-  repository, or task family.
-- How an agent should estimate uncertainty and when that should trigger an
-  autonomous experiment.
-- Which outcomes from ordinary use are trustworthy enough to become evaluation
-  evidence.
-- How much release and runtime routing vRI should own versus export to another
-  deployment system.
-- Whether the first useful implementation needs a background daemon or Web UI.
-- Which multi-agent coordination primitives remain necessary once agent
-  runtimes can manage their own subagents.
+Evaluation work does not accumulate reliably. Raw sessions and logs may be
+saved, but a later agent still has to rediscover where they are, decide what is
+relevant, reconstruct what happened, and determine which earlier conclusions
+remain valid. Asking an agent to reread all prior trajectories repeats this
+cost and leaves no durable link from a claimed lesson to later behavior.
 
-## 1. Problem
+Scores are also weak evidence by themselves. A failure may reflect missing
+capability, a harness budget, a broken environment, an overly strict hidden
+test, an ambiguous task, or a valid answer that the verifier rejects. A pass
+may reflect correct behavior, weak coverage, leaked state, or reward hacking.
+The useful unit is therefore not a score but a supported claim about a
+particular system, evaluation, and scope.
 
-Agents produce large amounts of experience: trajectories, tool calls, failures,
-human corrections, artifacts, and evaluation results. Most of that experience
-does not reliably change how the system works next time.
+The product must improve on the practical baseline: a capable user prompting a
+strong agent, searching local session files, running Harbor or another eval
+tool, and keeping notes by hand.
 
-Saving experience is not learning. If an agent mistakenly edits a generated
-file, retaining the trace or writing “avoid generated files” preserves a
-description of the failure. It does not establish that:
+## 3. First principles
 
-1. a reusable method changed;
-2. the changed method is selected in the relevant future situation;
-3. it improves behavior on tasks not used to invent it;
-4. it does not cause unacceptable regressions elsewhere.
+### Preserve evidence before interpreting it
 
-Existing agent products may provide memory, skills, traces, evaluations,
-sandboxes, or orchestration. The missing system-level loop is the controlled
-transformation of experience into methods, followed by independent evidence and
-scoped accumulation.
+Native transcripts, terminal output, trajectories, diffs, test results,
+screenshots, and benchmark artifacts may remain in their provider formats.
+Normalizing all of them into one semantic trace would lose information and
+couple vRI to fast-changing agent interfaces.
 
-## 2. Thesis
+vRI adds only the structure required to locate, cite, compare, protect, and
+version important material. Derived summaries and indexes are rebuildable;
+they are not the source of truth.
 
-**Self-improvement means that experience changes how an agent system works in
-the future, and that the change produces validated benefit beyond the
-experience that generated it.**
+### Let the agent choose the investigation
 
-The improvement target is the larger agent system:
+Evaluation research is open-ended. The agent may inspect one suspicious trace,
+sample a failure cluster, ask a domain expert, start helper agents, modify a
+verifier, run adversarial solutions, or stop because evidence is insufficient.
+vRI supplies capabilities, budget and permission boundaries, and durable
+state. It does not impose a universal state machine or agent topology.
 
-```text
-agent system
-  = agent provider
-  + skills and instructions
-  + context strategy
-  + tools and services
-  + workspace and environment
-  + routing and fallback policy
-```
+### Separate evidence, interpretation, and decision
 
-The agent provider may itself evolve, as Prime Agent's continual harness does,
-or remain a closed black box. vRI should support both without requiring one
-internal agent architecture.
+- **Evidence** is an observed artifact or outcome.
+- **Experience** is a revisable interpretation that may help later work.
+- **A method** is a reusable way of working, such as a skill, context policy,
+  verifier-repair procedure, or delegation strategy.
+- **A decision** authorizes an experiment, accepts a benchmark, or releases a
+  method within a scope.
 
-The long-term recursive hypothesis is stronger: a validated system version may
-also become better at proposing, testing, or selecting its own future
-improvements. The near-term system should measure that possibility without
-claiming open-ended RSI.
+An authorization to run an experiment is not approval of its candidate task.
+An agent's explanation is not automatically verified experience. A score is
+not a release decision.
 
-## 3. Improvement Loop
+### Test transfer, not memory volume
 
-The conceptual loop is:
+The system has learned only when accumulated experience or a changed method
+improves later work. More stored transcripts, longer context, more agents, or
+more benchmark tasks do not establish continual learning.
+
+### Reuse existing execution systems
+
+vRI should not rebuild terminal multiplexing, agent session restore, sandbox
+execution, model serving, or training infrastructure. It composes existing
+systems through narrow capability boundaries and records behaviorally relevant
+versions.
+
+## 4. System boundary
 
 ```text
-Episode
-  -> Experience
-  -> Experience-to-method transformation
-  -> Candidate change
-  -> Independent evaluation
-  -> Decision
-  -> Scoped release and assignment
-  -> Future Episode
+                         user or organization
+                    intent, evidence access, policy
+                                  |
+                                  v
+                       Eval Researcher System
+              primary agent + helpers + skills + tools
+                     context + memory + environment
+                     /                         \
+                    /                           \
+          Herdr runtime                    eval backends
+   sessions, panes, agents, hosts       Harbor, human review,
+    prompt/read/wait/resume/events       model APIs, other tools
+                    \                           /
+                     \                         /
+                      vRI durable substrate
+          raw references, searchable experience, versions,
+             exposure, evidence, decisions, and releases
 ```
 
-This is a causal model and audit boundary, not a mandatory workflow engine.
-Agents may inspect multiple episodes, branch, delegate, write exploratory code,
-or request new experiments in any order.
+### Herdr
 
-### Episode
+Herdr is a runtime substrate for the Eval Researcher System. It can keep real
+terminal processes alive, recognize agent state, resume supported native agent
+sessions, start helpers, prompt and read agents, wait on agents or processes,
+subscribe to events, and expose work across local and remote hosts.
 
-An episode is one bounded use of a resolved agent system on a task. It records
-the exact system version, inputs, relevant context references, actions,
-artifacts, outcomes, costs, and human interventions.
+Herdr does not provide the semantic experience model. Its native session
+reference is a useful bridge to the owning agent's transcript store. Terminal
+screen history is partial and may be disabled for privacy, so vRI must record
+capture completeness and use agent-native logs when available.
+
+The primary eval researcher may run inside Herdr and use it directly. vRI may
+also support imported sessions or another runtime; Herdr is the first concrete
+integration, not a mandatory user interface.
+
+### Harbor and other eval backends
+
+Harbor owns task packaging, sandbox execution, verifier execution, and its
+native job artifacts. The eval researcher may invoke Harbor, monitor jobs,
+inspect failures, patch tasks, and rerun them. vRI records the exact task and
+runtime identities plus the evidence needed to interpret the result.
+
+This distinction is important: Harbor owns an evaluation execution; the Eval
+Researcher System owns the investigation and iteration around it. vRI does not
+need to implement Harbor, but it must support that active loop rather than
+only ingesting a final score.
+
+## 5. Evidence and experience substrate
+
+The substrate has four layers. They are data roles, not mandatory workflow
+stages.
+
+### Raw evidence
+
+Raw material is stored as a content-addressed object or referenced by a stable
+URI plus digest when copying is impractical. Examples include:
+
+- native agent sessions and trajectories;
+- Herdr pane snapshots and lifecycle events;
+- Harbor configs, locks, results, verifier output, logs, and recordings;
+- Git commits, diffs, issues, pull requests, and later fixes;
+- user corrections, expert judgments, production incidents, and documents.
+
+Unexpected artifacts must remain ingestible. Provider adapters may identify
+well-known files, but an allowlist must not make an otherwise useful failed run
+disappear.
+
+### Minimal envelope
+
+Cross-system search requires a small amount of common metadata:
+
+```text
+source and external identity
+time and host
+workspace or repository
+task or intent when known
+agent, model, harness, and environment when known
+inputs, outputs, and outcome references
+human interventions
+permissions, retention, and completeness
+```
+
+Every field may be unknown. vRI should preserve partial evidence rather than
+invent missing semantics.
 
 ### Experience
 
-Experience is a typed interpretation derived from one or more episodes. It may
-describe a failure, uncertainty, repeated inefficiency, useful strategy,
-contradiction, or opportunity. It must retain links to the source episodes.
+An experience item is free-form content plus a small durable envelope:
 
-Experience is neither a durable method nor proof that a proposed lesson is
-correct.
+```text
+body artifact
+supporting or contradicting evidence references
+scope in which it may apply
+status: proposed, active, contested, superseded, or retired
+author and version
+optional actions and later outcomes
+```
 
-### Experience-to-method transformation
+The body may be prose, code, a script, a query, a playbook, or a provider-native
+artifact. The agent decides what deserves an experience record. vRI should not
+convert every session summary into permanent memory.
 
-An improver converts experience into candidate changes. It may be a human,
-agent, script, search process, or combination. Candidate surfaces include:
+### Context views
 
-- adding or revising a skill;
-- changing context selection or context-computation strategy;
-- updating routing for a task family;
-- adding a tool or service;
-- changing an environment, workflow, prompt, or subagent specification;
-- modifying data, training, serving, or evaluation components;
-- changing the improver itself.
+For each task, the eval researcher queries metadata, full text, and semantic or
+domain-specific indexes to build a working set. It may recursively open the
+underlying evidence, run code over it, or request a different view.
 
-The transformation should preserve its inputs, reasoning or predictions where
-useful, budget, generated candidates, and failures. No single transformation
-algorithm is part of the core.
+```text
+current intent and workspace
+  + relevant prior experience
+  + selected raw evidence
+  + current benchmark and system state
+  -> temporary context view
+```
 
-### Active experiments
+Context views are disposable projections. A reusable query, skill, memory
+policy, or context-building program becomes a `MethodVersion` only when it is
+deliberately proposed and evaluated.
 
-Improvement need not wait for the next user request. An agent may use its
-uncertainty, conflicting evidence, expected value, or missing coverage to
-propose experiments. In the first version, proposing and authorizing work
-remain separate actions so resource use and autonomy are visible.
+## 6. Improvement roles and loops
 
-## 4. Agent Boundary and Improvement Envelope
+An improvement claim names four roles:
 
-vRI distinguishes two harness layers:
+| Role | Meaning | Eval-researcher application |
+| --- | --- | --- |
+| Target | what changes | benchmark, task, verifier, or researcher method |
+| Worker system | what performs the work | Eval Researcher System and helpers |
+| Method | reusable way of working | curation, context, delegation, or repair policy |
+| Evaluator | what judges the change | task checks, expert judgment, protected cases, later outcomes |
 
-- The **inner harness** is owned by the agent provider: its reasoning loop,
-  compaction, tool routing, subagent implementation, and internal memory.
-- The **improvement envelope** is the versioned system around the agent:
-  external skills, context surfaces, tools, services, workspace, environment,
-  routing, budgets, and feedback.
+The first loop produces useful evaluation artifacts:
 
-An adapter declares which capabilities and mutable surfaces a provider exposes.
-Examples:
+```text
+intent and evidence
+  -> agent investigation and execution
+  -> candidate evaluation artifact
+  -> validation and review
+  -> scoped release or further iteration
+```
 
-| Provider type | Typical mutable surfaces visible to vRI |
+The continual-learning loop uses previous work:
+
+```text
+prior episodes, findings, corrections, and outcomes
+  -> retrieved experience and candidate method change
+  -> later evaluation work on new source material
+  -> comparison with the previous method or stateless baseline
+  -> retain, narrow, or reject the change
+```
+
+This resembles a stateful-versus-stateless continual-learning evaluation: vRI
+defines comparable conditions and evidence boundaries, not the internal memory
+mechanism. The system may use full history, notes, retrieval, a playbook,
+fine-tuning, or another method.
+
+Recursive self-improvement is a stronger claim. It requires an accepted change
+to the Eval Researcher System to improve its ability to produce future
+validated changes on unexposed work. It cannot be inferred from one improved
+benchmark or one successful retry.
+
+## 7. Evaluation discipline
+
+Every consequential claim should record:
+
+- the practical baseline and matched budget;
+- the exact target, worker, method, evaluator, and environment versions;
+- which tasks, traces, answers, verifier feedback, and outcomes the improver
+  could access;
+- the evidence supporting and contradicting the claim;
+- uncertainty, regressions, cost, supported scope, and expiration;
+- the human or policy decision that followed.
+
+Information exposure is part of the result:
+
+| Partition | Use |
 | --- | --- |
-| Closed agent | skills, context, tools, environment |
-| CLI coding agent | instructions, skill files, workspace, tool services |
-| Continual harness | prompt, memory, skills, subagent specifications |
-| Training system | data recipe, algorithm, model, trainer configuration |
+| Discovery | generate hypotheses and changes |
+| Selection | choose among candidates |
+| Protected acceptance | test a frozen candidate without revealing the test |
+| Temporal follow-up | observe later work unavailable during construction |
 
-Deeper provider-specific improvement is optional. The portable vRI loop must
-still work at the envelope level.
+Using the same case for discovery and reporting can establish a regression fix
+or in-sample adaptation. It cannot establish transfer.
 
-## 5. Versioned Service Graph
+For benchmark work, the agent should treat quality as a vector rather than one
+score: importance, intent alignment, verifier validity, environment integrity,
+anti-hacking robustness, discrimination, portfolio contribution, external
+relevance, reproducibility, and interpretability. The required evidence depends
+on the decision the benchmark supports.
 
-“Everything as a service” means that important components are addressable
-through stable contracts and immutable references. It does not mean that every
-component is a network microservice or that vRI implements all of them.
+## 8. Trust and autonomy
 
-A system version is an immutable manifest of service and artifact references:
+Agent autonomy operates inside explicit boundaries:
 
-```text
-SystemVersion
-  model        -> ServiceRef
-  data         -> ServiceRef or ArtifactRef
-  train        -> ServiceRef
-  serve        -> ServiceRef
-  eval         -> ServiceRef
-  environment  -> ServiceRef
-  harness      -> ServiceRef
-  agent        -> ServiceRef
-  envelope     -> versioned skills, context, tools, and routing
-```
+- the user or organization supplies the top-level intent, data access, budget,
+  and protected policies;
+- the agent chooses the investigation, tools, helpers, and intermediate
+  artifacts;
+- resource-consuming actions follow configured authorization rules;
+- candidate evaluators and methods cannot serve as their own acceptance proof;
+- credentials and protected evaluation data stay with their owning providers;
+- raw evidence, exposure, and decisions are immutable or append-only;
+- releases are scoped, reversible, and distinct from rejection or requests for
+  more evidence.
 
-The core should not require every role or hard-code domain-specific behavior.
-Roles describe how generic versioned capabilities participate in a system.
+Only consequential transitions require durable structure. vRI need not record
+every thought, terminal keystroke, or agent-to-agent message as a domain object.
 
-### Controlled mutability
+## 9. Current scope
 
-Every component remains encapsulated. An improvement run assigns one of three
-access modes:
+The first vertical is a coding-agent eval researcher that uses real sessions,
+repositories, existing evaluations, representative systems, and limited human
+judgment. It should support both personal and organizational benchmark work.
 
-- **fixed:** callable but unchanged, providing a controlled experimental factor;
-- **mutable:** forkable or replaceable through a declared extension point;
-- **protected:** callable but not inspectable or changeable by the system being
-  evaluated.
+The first credible product result is not a large benchmark. It is one useful
+evaluation investigation in which the system:
 
-For example, a stable training factory may accept a mutable data recipe while
-holding the model, algorithm, and environment fixed. A later run can hold data
-fixed and open the algorithm slot. Joint optimization should begin only after
-single-surface effects and important interactions can be measured.
+1. finds relevant prior evidence without rereading all sessions;
+2. chooses or clarifies a meaningful question;
+3. uses Herdr and Harbor to investigate, build, run, and iterate;
+4. explains an important result from artifacts rather than score alone;
+5. retains a supported experience item that improves a later investigation.
 
-Service references must capture a version or digest and the configuration that
-can affect results. A mutable remote alias is not a sufficient control.
+Initial non-goals:
 
-## 6. Core Records
+- a foundation model or universal agent interface;
+- a universal semantic trajectory schema;
+- automatic conversion of all history into memory or training data;
+- a new task format, sandbox, trainer, serving system, or cluster scheduler;
+- a fixed multi-agent topology;
+- autonomous authority over top-level organizational goals;
+- online model-weight learning as a prerequisite;
+- claims of open-ended RSI.
 
-The following are candidate core concepts. Exact schemas remain provisional.
+## 10. Open questions
 
-### Scope
+- What is the smallest index that saves more agent work than it costs to
+  maintain?
+- Which experiences should be retrieved automatically, and which should
+  require active search?
+- What outcome signals can distinguish a useful eval-research method from a
+  polished but low-value one?
+- How should private sessions and production evidence be retained, redacted,
+  and shared across scopes?
+- Which Herdr events and native session integrations are sufficient for the
+  first managed loop?
+- Can the Eval Researcher System outperform direct prompting plus Harbor at a
+  matched budget?
+- Which parts of curation taste transfer across users or organizations?
+- Which contracts, if any, generalize beyond evaluation work?
 
-The boundary within which experience, policies, releases, and assignments
-apply: for example a user, repository, organization, task family, or production
-service.
+## References
 
-### SystemVersion
-
-An immutable manifest resolving an agent and all relevant improvement-envelope
-and service references. Every episode and evaluation binds to one.
-
-### Episode and Experience
-
-An episode records what happened. Experience records what an actor inferred
-from one or more episodes. Neither mutates the active system.
-
-### ImprovementRun and CandidateChange
-
-An improvement run binds source experience, a base system version, fixed,
-mutable, and protected surfaces, an improver, objective, budget, and generated
-candidates. A candidate change is a structured delta from the base manifest.
-
-### EvaluationRun and Evidence
-
-An evaluation run binds an exact candidate, evaluator, environment, task set,
-and resource policy. Evidence preserves observations and uncertainty. Evidence
-does not decide deployment.
-
-### Decision
-
-A human or policy judgment over evidence. It may reject, request more evidence,
-approve limited use, or make a candidate eligible for release.
-
-### Release, Assignment, and Resolution
-
-A release packages approved capabilities and constraints. An assignment policy
-selects a release for a scope and task context. Resolution records which exact
-system version was used by an episode.
-
-Promotion therefore need not replace an old workflow. It may:
-
-- add a skill without removing existing skills;
-- route one task family to a specialized method;
-- enable a candidate only for a repository or team;
-- retain the older method as a cheaper path or fallback;
-- run a candidate in shadow or comparison mode.
-
-Rollback changes assignment or release state; it does not erase history.
-
-## 7. Architecture
-
-```text
-                    Humans and agents
-                           |
-                CLI / skills / SDK adapters
-                           |
-                     vRI control core
-       +-------------------+-------------------+
-       | identity, lineage, events, policy     |
-       | episodes, experience, candidates      |
-       | evidence, decisions, releases         |
-       +-------------------+-------------------+
-                           |
-                versioned provider adapters
-                           |
-      Agent / Model / Data / Train / Serve / Eval /
-              Environment / Workspace / Context
-```
-
-Use, improvement, and evidence/governance are separate logical concerns, not
-necessarily separate processes. The initial implementation should remain a
-modular local system.
-
-### Agent-programmable capabilities
-
-vRI should expose small, reliable primitives through Bash, skills, Python, or
-other adapters. The agent decides how to compose them; vRI records the resulting
-call graph and artifacts. This preserves a soft workflow while keeping
-identity, budgets, permissions, provenance, and evidence hard.
-
-### Context as a computational substrate
-
-Context is not only a generated prompt. Episodes, artifacts, experience, and
-evidence should be addressable data that an agent can search, filter, join,
-summarize, or analyze with ordinary code.
-
-An RLM-like agent may do this inside a persistent REPL. Another agent may use
-Bash and Python against a mounted context store. vRI should standardize the
-references and record resulting context views without requiring either agent
-architecture.
-
-A promoted context improvement is a reusable method: a query, skill, routing
-rule, or context policy. A scratch summary or stored transcript is not by itself
-such an improvement.
-
-## 8. Verification and Trust
-
-Verifier quality constrains the whole loop. vRI does not provide a universal
-definition of improvement; it provides a governed way to invoke and record
-tests, benchmarks, statistical comparisons, external outcomes, agent critics,
-and human review.
-
-At minimum:
-
-- evaluation evidence is versioned and separate from decisions;
-- candidates are tested on tasks not used to construct them where possible;
-- regression, cost, and uncertainty remain visible;
-- the target cannot silently modify protected evaluators or promotion rules;
-- evaluator changes require independent meta-evaluation or human authority;
-- exact inputs, environments, and interventions remain auditable;
-- a released method can be disabled or routed away without deleting evidence.
-
-Eval-RSI studies how weakness discovery and evaluation mechanisms can evolve
-under these boundaries. It can later supply an `EvalService`, evaluation
-portfolio, or candidate evaluator changes to the main loop.
-
-## 9. Scope
-
-### vRI owns
-
-- durable identities, version manifests, lineage, and event history;
-- episode, experience, candidate, evidence, decision, and release records;
-- controlled-mutability and trust semantics;
-- scope, assignment, resolution, and rollback semantics;
-- adapters and capability discovery for external services;
-- enough scheduling and budget control to run improvement experiments.
-
-### Users and providers bring
-
-- agents and their internal harnesses;
-- models, data, trainers, serving systems, and evaluators;
-- repositories, tasks, and domain judgment;
-- local processes, Herdr, worktrees, containers, sandboxes, clusters, or cloud
-  infrastructure.
-
-### Non-goals
-
-Initially vRI will not:
-
-- build a foundation model or universal agent;
-- implement every service in the AI stack;
-- equate trace storage, memory, or self-critique with learning;
-- prescribe one research or multi-agent workflow;
-- assume a universal scalar verifier;
-- automatically approve evaluator or improver changes;
-- claim open-ended recursive self-improvement.
-
-Multi-agent execution remains a useful system capability for search,
-independent critique, and parallel experiments. It is not the first product
-thesis and should reuse agent runtimes or session providers where possible.
-
-## 10. First Vertical
-
-The first discriminating implementation keeps one bring-your-own agent opaque:
-
-1. resolve a base system version containing the agent, skills, context policy,
-   tools, environment, and evaluator;
-2. run ordinary tasks and record episodes;
-3. turn selected experience into candidate skill, context, or routing changes;
-4. evaluate candidates against the current system on held-out tasks;
-5. record a human decision and create a scoped release;
-6. resolve that release for a later episode and measure whether the gain
-   persists;
-7. disable or roll back the assignment without losing lineage.
-
-The realistic baseline is the existing workflow of agent sessions, Git,
-worklogs, hand-written skills, and manual evaluation. vRI must show a measurable
-advantage over that baseline, not merely reproduce it with more objects.
-
-## 11. Open Questions
-
-- What is the smallest method-change representation that covers skills,
-  context, routing, and workflows without becoming a generic configuration
-  language?
-- How should useful experience be selected without creating a noisy,
-  self-reinforcing memory loop?
-- How is actual use of a promoted method observed rather than inferred from its
-  presence in a context window?
-- Which tasks and temporal gaps are sufficient to test transfer?
-- How should several compatible improvements compose, conflict, or inherit
-  fallback behavior?
-- What uncertainty signal justifies proactive experimentation?
-- When does joint service optimization produce enough value to justify weaker
-  causal attribution?
-- Which Herdr and Prime Agent capabilities should be consumed directly through
-  adapters?
-- When do a daemon, Web UI, and managed service materially improve the loop?
-
-These questions should be answered with vertical experiments before their
-solutions become permanent abstractions.
+- [Herdr concepts](https://herdr.dev/docs/concepts/)
+- [Herdr agent automation](https://herdr.dev/docs/agent-automation/)
+- [Herdr socket API](https://herdr.dev/docs/socket-api/)
+- [Herdr session state and restore](https://herdr.dev/docs/session-state/)
+- [Herdr multi-machine operation](https://herdr.dev/docs/connecting-machines/)
+- [Harbor](https://github.com/harbor-framework/harbor)
+- [Eval researcher proposal](EVAL_RSI_PROPOSAL.md)
+- [RSI roundtable research notes](research-notes/2026-09-11-dwarkesh-rsi-roundtable.md)

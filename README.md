@@ -1,73 +1,82 @@
 # vRI
 
-**A bring-your-own-agent runtime for improving how agent systems work.**
+**A runtime for an eval researcher that learns from experience.**
 
-Agents already complete useful tasks, but ordinary use rarely compounds into a
-better system. Saving a trajectory or writing a lesson preserves experience; it
-does not show that the agent has learned a better method or that the method
-helps on tasks it has not seen before.
+Evaluation work is more than writing tasks or collecting scores. Someone has
+to decide what matters, turn real cases into fair and reproducible tests,
+inspect failures, repair tasks and verifiers, and keep the result useful as
+models and environments change. Today that work is slow, expert-heavy, and
+poorly accumulated across projects.
 
-vRI explores the missing loop:
+vRI is building an **Eval Researcher System**: an agent, its harness, tools,
+skills, context, memory, environment, and any helper agents it invokes. Its
+first workload is benchmark construction and maintenance for individuals and
+organizations.
 
 ```text
-ordinary agent use
-  -> experience and observed weakness
-  -> candidate method change
-  -> independent evaluation
-  -> scoped release and routing
-  -> future agent use
+evaluation intent + real work + existing evals
+  -> investigate what is worth measuring
+  -> build, run, inspect, and repair evaluations
+  -> release a benchmark with evidence and limitations
+  -> learn from later failures, decisions, and user feedback
+  -> improve how future evaluation work is done
 ```
 
-The agent may be Codex, Claude Code, Prime Agent, a custom CLI, or another
-runtime. vRI does not require access to its internal reasoning or harness. It
-can improve the larger system around an opaque agent: skills, context
-strategies, tools, services, environments, routing, workflows, and eventually
-the mechanism that proposes improvements.
+## System boundary
 
-## Working thesis
+- **Herdr** can host persistent agents and processes, coordinate helpers, and
+  expose live state across local and remote machines.
+- **Harbor** can package and execute evaluation tasks in sandboxes and return
+  verifier results and trajectories.
+- **vRI** makes source material, runs, artifacts, findings, and prior
+  experience searchable and reusable. It also records versions, exposure,
+  evidence, decisions, and method changes needed to test continual learning.
 
-- **Experience is input, not learning.** A trace matters only if it can produce
-  a method change whose benefit survives independent, future evaluation.
-- **The unit of improvement is the agent system.** A system version composes an
-  agent with a versioned improvement envelope rather than treating the model as
-  the only mutable component.
-- **Agents choose the workflow.** vRI exposes reliable, programmable
-  capabilities through CLI, skills, and service adapters instead of imposing a
-  universal improvement pipeline.
-- **Verification governs accumulation.** Evidence, judgment, release, routing,
-  and rollback are distinct. A candidate does not become the new global
-  default merely because it won one comparison.
-- **Everything may be referenced as a service; vRI does not implement
-  everything.** Users bring agents, models, training, serving, evaluation, and
-  compute. vRI records their exact versions and controls which surfaces are
-  fixed, mutable, or protected in an improvement run.
+These are capability boundaries, not a fixed workflow. The eval researcher
+chooses what to inspect, which agents or tools to invoke, whether to build or
+repair a task, and what is worth retaining as experience.
 
-A successful promotion may add one skill, change routing for one task family,
-enable a workflow only within one scope, or retain an older method as a cheap
-path or fallback. Improvement is therefore compositional and contextual, not a
-single sequence of replacements.
+## Design principles
 
-## Initial direction
+- **Preserve raw evidence; structure only useful boundaries.** Native session
+  logs, trajectories, terminal output, diffs, and Harbor artifacts may remain
+  in their original formats. vRI adds enough identity, provenance, scope, and
+  version information to find and cite them.
+- **Experience is a revisable interpretation.** A lesson or playbook must link
+  back to its evidence and may later be supported, narrowed, contradicted, or
+  retired. Saving every transcript as permanent memory is not learning.
+- **Context is computed for the current task.** Agents query relevant evidence
+  and experience instead of rereading every prior session. They may still open
+  the full source when needed.
+- **Scores require explanation.** A pass or failure may come from model
+  capability, harness behavior, environment failure, verifier error, or reward
+  hacking. Important conclusions retain the artifacts needed for attribution.
+- **Evaluation and acceptance are separate.** The system records what an
+  improver saw, freezes candidate methods before protected checks, and keeps
+  evidence distinct from human authorization and release.
+- **Use strong existing systems.** vRI should improve real agent and evaluation
+  workflows, not replace agent interfaces, Harbor, sandboxes, or model APIs.
 
-The first vertical keeps a bring-your-own agent opaque and allows an improver
-to change its external skills, context strategy, and environment. The system
-must then evaluate the candidate on unseen future tasks, release it to a
-defined scope, resolve the correct system version for a later episode, and
-retain enough evidence to explain or reverse the decision.
-
-Eval-RSI is a related research branch concerned with discovering weaknesses and
-improving the mechanisms that judge improvement. It may later provide versioned
-evaluation services to the main loop, but it is not the initial product scope.
+The near-term product is a useful eval researcher. The continual-learning
+claim begins when accumulated experience improves its performance on later
+evaluation work. The recursive-self-improvement claim begins only when a
+validated change to the researcher system makes it better at producing future
+validated changes.
 
 ## Status
 
-vRI is an ongoing, pre-stable design project. The current documents are working
-hypotheses to be tested against real use, not compatibility commitments.
+vRI is pre-stable. A local prototype study produced one real Harbor-backed
+evaluation task and four runs, but its raw sessions and machine-specific
+artifacts are intentionally not part of this public repository. The Go code is
+a storage and query walking skeleton; it does not yet implement the Eval
+Researcher System or the Herdr integration.
 
 - [System design](docs/DESIGN.md)
+- [Eval researcher proposal](docs/EVAL_RSI_PROPOSAL.md)
 - [Initial technical plan](docs/TECHNICAL_PLAN.md)
 - [Roadmap](ROADMAP.md)
-- [Experience-grounded eval evolution proposal](docs/EVAL_RSI_PROPOSAL.md)
+- [Current v0 storage contract](docs/CORE_DESIGN.md)
+- [RSI research notes](docs/research-notes/2026-09-11-dwarkesh-rsi-roundtable.md)
 
 ## License
 
