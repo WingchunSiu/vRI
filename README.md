@@ -101,7 +101,7 @@ or demonstrate transfer from retained experience.
 - [System design](docs/DESIGN.md)
 - [Eval researcher proposal](docs/EVAL_RSI_PROPOSAL.md)
 - [Initial technical plan](docs/TECHNICAL_PLAN.md)
-- [Roadmap](ROADMAP.md)
+- [Roadmap](docs/ROADMAP.md)
 - [Current v0 storage contract](docs/CORE_DESIGN.md)
 - [RSI research notes](docs/research-notes/2026-09-11-dwarkesh-rsi-roundtable.md)
 
