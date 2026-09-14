@@ -48,6 +48,8 @@ const (
 	KindJobArtifact   = "job_artifact"
 	KindSourceExcerpt = "source_excerpt"
 	KindFile          = "file"
+	KindEvidence      = "evidence"
+	KindExperience    = "experience_body"
 )
 
 // Endpoint kinds for relations.

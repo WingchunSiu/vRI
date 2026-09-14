@@ -180,6 +180,20 @@ func IsDirManifest(content []byte) bool {
 	return m.Marker == dirManifestMarker
 }
 
+// DirManifestEntries returns the files referenced by a directory manifest.
+// It is used by context views to inspect a captured directory without first
+// materializing the whole tree. The returned slice is a copy.
+func DirManifestEntries(content []byte) ([]DirEntry, error) {
+	var m dirManifest
+	if err := json.Unmarshal(content, &m); err != nil {
+		return nil, err
+	}
+	if m.Marker != dirManifestMarker {
+		return nil, fmt.Errorf("objects: not a directory manifest")
+	}
+	return append([]DirEntry(nil), m.Files...), nil
+}
+
 // ExtractDir rebuilds a directory tree from a manifest blob.
 func ExtractDir(objectsDir string, manifestContent []byte, outDir string) error {
 	var m dirManifest

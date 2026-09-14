@@ -63,13 +63,40 @@ evaluation work. The recursive-self-improvement claim begins only when a
 validated change to the researcher system makes it better at producing future
 validated changes.
 
+## First researcher-facing skeleton
+
+The Go core exposes the first durable capabilities an eval researcher can use
+without imposing a fixed workflow:
+
+```text
+vri evidence capture [--scope <scope>] <path>
+vri context query [--scope <scope>] <query>
+vri context open <ref>
+vri context materialize --out <dir> <ref...>
+vri experience propose --body <file> --scope <scope> --evidence <ref>
+vri experience revise --status <status> <id>
+```
+
+Evidence capture preserves a file or directory by content and records its
+provenance and completeness. Context commands search and materialize captured
+evidence and experience. Experience is append-only, evidence-backed, scoped,
+and revisable through `proposed`, `active`, `contested`, `superseded`, and
+`retired` states.
+
+The initial agent method lives in
+[`skills/eval-researcher/SKILL.md`](skills/eval-researcher/SKILL.md). The agent
+is intended to run as a normal persistent agent in Herdr and call Harbor, Git,
+native session stores, and helper agents directly as the investigation
+requires.
+
 ## Status
 
 vRI is pre-stable. A local prototype study produced one real Harbor-backed
 evaluation task and four runs, but its raw sessions and machine-specific
 artifacts are intentionally not part of this public repository. The Go code is
-a storage and query walking skeleton; it does not yet implement the Eval
-Researcher System or the Herdr integration.
+now a storage, context, and experience walking skeleton. It does not yet launch
+or manage the Eval Researcher in Herdr, autonomously perform an investigation,
+or demonstrate transfer from retained experience.
 
 - [System design](docs/DESIGN.md)
 - [Eval researcher proposal](docs/EVAL_RSI_PROPOSAL.md)

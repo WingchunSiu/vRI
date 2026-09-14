@@ -12,12 +12,13 @@
 An eval researcher needs evidence and experience that survive one agent
 session. The smallest current mechanism preserves files by content, stores
 lightweight interpretations and decisions, links them, imports Harbor results,
-and rebuilds a few useful views.
+and exposes the first context and experience operations to an agent.
 
 This is deliberately narrower than vRI's intended product. Today the agent did
-the research manually using ordinary repository and Harbor tools. The Go code
-does not host an agent, search prior experience, run Harbor, diagnose a trace,
-or improve a method.
+the motivating research manually using ordinary repository and Harbor tools.
+The Go code can now capture and search evidence and retain revisable
+experience, but it does not host an agent, run Harbor, diagnose a trace, or
+improve a method autonomously.
 
 ```text
 files and source material ──▶ objects + records + relations
@@ -104,6 +105,7 @@ The local study uses these record types:
 | Type | Current purpose |
 | --- | --- |
 | `source` | Imported source material and provenance |
+| `experience` | A scoped, revisable interpretation linked to evidence and a separate body artifact |
 | `task_candidate` | A proposed measurement task |
 | `selection` | A recorded choice among candidates |
 | `harbor_job` | Parsed job metadata, trials, rewards, and artifact digests |
@@ -111,16 +113,20 @@ The local study uses these record types:
 | `benchmark_manifest` | A candidate benchmark definition |
 | `decision` | A reviewer outcome and scope |
 
-Current relations include `extracted_from`, `includes`, `evaluates`,
-`supports`, `contradicts`, and `decided_by`. New evidence and experience do not
-need new tables; they may introduce new record or relation types when an actual
-query or invariant requires them.
+Current relations include `captures`, `has_body`, `supported_by`, `revises`,
+`extracted_from`, `includes`, `evaluates`, `supports`, `contradicts`, and
+`decided_by`. New evidence and experience do not need new tables; they may
+introduce new record or relation types when an actual query or invariant
+requires them.
 
 ## 5. Implemented CLI
 
 ```text
 vri init
 vri import <path>
+vri evidence capture <path>
+vri context query|open|materialize
+vri experience propose|revise
 vri object put|get|list
 vri record put|get|list
 vri ingest harbor-job <dir>
@@ -134,6 +140,15 @@ Behavior today:
 - `init` creates the SQLite store and object directory.
 - `import` copies source material into the object store and writes a `source`
   record.
+- `evidence capture` preserves a file or directory and records a minimal source
+  envelope with provenance and completeness.
+- `context query` searches record metadata and captured textual content;
+  `open` resolves a record or object to raw content; `materialize` creates a
+  disposable working set with a manifest back to its source references.
+- `experience propose` requires at least one scope and one existing evidence
+  reference and stores its body separately; `revise` appends a new version with
+  a status and a `revises` relation instead of mutating the earlier
+  interpretation.
 - `object` and `record` expose the generic storage primitives.
 - `ingest harbor-job` parses a completed Harbor job, copies its known semantic
   artifacts, writes one `harbor_job` record, and links it to any matching task
@@ -161,6 +176,12 @@ the object itself.
 - Release refuses a missing task object, changed job-directory digest, or
   manifest run without a matching ingested job record.
 - Synthetic tests reconstruct multiple jobs as a comparison matrix.
+- Experience cannot be proposed with a missing or empty evidence set.
+- Removing an original source does not prevent captured evidence from being
+  queried, opened, or materialized.
+- Experience revisions preserve the previous record and body.
+- Default context queries return the head of an experience revision chain and
+  omit heads marked `superseded` or `retired`; history remains addressable.
 
 These invariants are covered by behavior tests. They establish only what the
 implementation checks; they do not establish task importance, semantic
@@ -185,12 +206,17 @@ These are observed correctness gaps, not speculative future features:
 5. **Artifact selection:** the fixed allowlist can omit unexpected evidence and
    includes incidental files such as `__pycache__` when they appear directly in
    selected directories.
-6. **Retrieval:** there is no text search, relevance ranking, context assembly,
-   or method/experience comparison yet.
+6. **Retrieval scale:** context query currently scans the small local store and
+   has no ranking or rebuildable FTS index. Context materialization is present,
+   but method comparison and automatic context-policy evaluation are not.
 
-Fixing the first five makes the existing evidence boundary trustworthy. Adding
-retrieval and a Herdr-managed researcher is the next product slice; it should
-not wait for a hypothetical second eval backend or a larger schema.
+7. **Researcher runtime:** the repository includes an initial eval-researcher
+   skill, but no Herdr launcher or adapter and no completed autonomous vertical.
+
+Fixing the first five makes the existing Harbor evidence boundary trustworthy.
+The scan-based retrieval and initial researcher skill now make a thin
+Herdr-managed investigation the next product slice; it should drive further
+adapter and storage work from observed failures.
 
 ## 8. Local-study relationship
 

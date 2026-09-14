@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/WingchunSiu/vRI/internal/app"
 	"github.com/WingchunSiu/vRI/internal/store"
@@ -18,6 +19,10 @@ usage: vri <command> [flags]
 commands:
   init                        create .vri store in the current directory
   import <path>               import source material -> source record + object
+  evidence capture <path>     preserve raw evidence with provenance
+  context query|open|materialize
+                              retrieve task-specific evidence and experience
+  experience propose|revise   retain revisable, evidence-backed experience
   object put|get|list         content-addressed files and directories
   record put|get|list         typed JSON records
   ingest harbor-job <dir>     ingest a Harbor job dir -> harbor_job record
@@ -39,6 +44,12 @@ func main() {
 		err = cmdInit(os.Args[2:])
 	case "import":
 		err = cmdImport(os.Args[2:])
+	case "evidence":
+		err = cmdEvidence(os.Args[2:])
+	case "context":
+		err = cmdContext(os.Args[2:])
+	case "experience":
+		err = cmdExperience(os.Args[2:])
 	case "object":
 		err = cmdObject(os.Args[2:])
 	case "record":
@@ -61,6 +72,14 @@ func main() {
 		fmt.Fprintln(os.Stderr, "vri:", err)
 		os.Exit(1)
 	}
+}
+
+type stringListFlag []string
+
+func (s *stringListFlag) String() string { return strings.Join(*s, ",") }
+func (s *stringListFlag) Set(value string) error {
+	*s = append(*s, value)
+	return nil
 }
 
 func cwd() (string, error) {
@@ -116,6 +135,162 @@ func cmdImport(args []string) error {
 	defer a.St.Close()
 	_, err = a.Import(fs.Arg(0), *kind, *actor)
 	return err
+}
+
+func cmdEvidence(args []string) error {
+	if len(args) < 1 || args[0] != "capture" {
+		return fmt.Errorf("usage: vri evidence capture [flags] <path>")
+	}
+	fs := flag.NewFlagSet("evidence capture", flag.ContinueOnError)
+	jsonOut := fs.Bool("json", false, "structured output")
+	title := fs.String("title", "", "human-readable source title")
+	kind := fs.String("kind", "artifact", "source kind (session|run|document|artifact)")
+	sourceURI := fs.String("source-uri", "", "stable source URI (defaults to file URI)")
+	completeness := fs.String("completeness", app.CompletenessComplete, "capture completeness (complete|partial|unknown)")
+	actor := fs.String("actor", "agent", "who is capturing the evidence")
+	var scopes stringListFlag
+	fs.Var(&scopes, "scope", "scope in which the evidence is relevant (repeatable)")
+	if err := fs.Parse(args[1:]); err != nil {
+		return err
+	}
+	if fs.NArg() != 1 {
+		return fmt.Errorf("usage: vri evidence capture [flags] <path>")
+	}
+	a, err := openApp(*jsonOut)
+	if err != nil {
+		return err
+	}
+	defer a.St.Close()
+	_, err = a.EvidenceCapture(app.EvidenceCaptureOptions{
+		Path: fs.Arg(0), Title: *title, Kind: *kind, SourceURI: *sourceURI,
+		Completeness: *completeness, Scopes: scopes, Actor: *actor,
+	})
+	return err
+}
+
+func cmdContext(args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("usage: vri context query|open|materialize ...")
+	}
+	switch args[0] {
+	case "query":
+		fs := flag.NewFlagSet("context query", flag.ContinueOnError)
+		jsonOut := fs.Bool("json", false, "structured output")
+		recordType := fs.String("type", "", "limit results to one record type")
+		limit := fs.Int("limit", 20, "maximum results")
+		var scopes stringListFlag
+		fs.Var(&scopes, "scope", "require an exact record scope (repeatable)")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		if fs.NArg() == 0 {
+			return fmt.Errorf("usage: vri context query [flags] <query>")
+		}
+		a, err := openApp(*jsonOut)
+		if err != nil {
+			return err
+		}
+		defer a.St.Close()
+		_, err = a.ContextQuery(strings.Join(fs.Args(), " "), *recordType, scopes, *limit)
+		return err
+	case "open":
+		fs := flag.NewFlagSet("context open", flag.ContinueOnError)
+		jsonOut := fs.Bool("json", false, "structured output")
+		locator := fs.String("path", "", "relative file inside a captured directory")
+		out := fs.String("out", "", "write or extract content to this path")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		if fs.NArg() != 1 {
+			return fmt.Errorf("usage: vri context open [flags] <ref>")
+		}
+		a, err := openApp(*jsonOut)
+		if err != nil {
+			return err
+		}
+		defer a.St.Close()
+		_, err = a.ContextOpen(fs.Arg(0), *locator, *out)
+		return err
+	case "materialize":
+		fs := flag.NewFlagSet("context materialize", flag.ContinueOnError)
+		jsonOut := fs.Bool("json", false, "structured output")
+		out := fs.String("out", "", "new destination directory")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		if fs.NArg() == 0 || *out == "" {
+			return fmt.Errorf("usage: vri context materialize --out <dir> <ref...>")
+		}
+		a, err := openApp(*jsonOut)
+		if err != nil {
+			return err
+		}
+		defer a.St.Close()
+		_, err = a.ContextMaterialize(fs.Args(), *out)
+		return err
+	default:
+		return fmt.Errorf("usage: vri context query|open|materialize ...")
+	}
+}
+
+func cmdExperience(args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("usage: vri experience propose|revise ...")
+	}
+	switch args[0] {
+	case "propose":
+		fs := flag.NewFlagSet("experience propose", flag.ContinueOnError)
+		jsonOut := fs.Bool("json", false, "structured output")
+		body := fs.String("body", "", "prose or code file containing the interpretation")
+		title := fs.String("title", "", "short descriptive title")
+		actor := fs.String("actor", "agent", "who is proposing the experience")
+		var evidence, scopes stringListFlag
+		fs.Var(&evidence, "evidence", "supporting record ID or object digest (repeatable)")
+		fs.Var(&scopes, "scope", "scope in which the experience may apply (repeatable)")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		if fs.NArg() != 0 || *body == "" {
+			return fmt.Errorf("usage: vri experience propose --body <file> --evidence <ref> [flags]")
+		}
+		a, err := openApp(*jsonOut)
+		if err != nil {
+			return err
+		}
+		defer a.St.Close()
+		_, err = a.ExperiencePropose(app.ExperienceOptions{
+			BodyPath: *body, Title: *title, Scopes: scopes, Evidence: evidence, Actor: *actor,
+		})
+		return err
+	case "revise":
+		fs := flag.NewFlagSet("experience revise", flag.ContinueOnError)
+		jsonOut := fs.Bool("json", false, "structured output")
+		body := fs.String("body", "", "replacement body file (omitted to inherit)")
+		title := fs.String("title", "", "replacement title (omitted to inherit)")
+		status := fs.String("status", "", "proposed|active|contested|superseded|retired")
+		actor := fs.String("actor", "agent", "who is revising the experience")
+		var evidence, scopes stringListFlag
+		fs.Var(&evidence, "evidence", "replacement evidence reference set (repeatable)")
+		fs.Var(&scopes, "scope", "replacement scope set (repeatable)")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		if fs.NArg() != 1 {
+			return fmt.Errorf("usage: vri experience revise [flags] <id>")
+		}
+		a, err := openApp(*jsonOut)
+		if err != nil {
+			return err
+		}
+		defer a.St.Close()
+		_, err = a.ExperienceRevise(fs.Arg(0), app.ExperienceOptions{
+			BodyPath: *body, Title: *title, Status: *status, Scopes: scopes,
+			Evidence: evidence, Actor: *actor,
+		})
+		return err
+	default:
+		return fmt.Errorf("usage: vri experience propose|revise ...")
+	}
 }
 
 func cmdObject(args []string) error {

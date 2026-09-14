@@ -220,32 +220,44 @@ The first default skill should teach the agent to:
 
 ## 8. Delivery sequence
 
-### A. Correct the existing skeleton
+### A. Expose the minimum researcher core
+
+Status: first skeleton implemented. The Go CLI can capture arbitrary files and
+directories, query and materialize textual context, and propose or revise
+evidence-backed experience. An initial eval-researcher skill defines the agent
+method without imposing a fixed workflow.
+
+Keep these as capabilities called by a normal agent. Do not turn the CLI into a
+universal investigation state machine or wrap every Harbor and Herdr action.
+
+### B. Run one complete investigation in Herdr
+
+Stand up the primary researcher in a persistent workspace. Give it a high-level
+intent and selected source access, then let it query context and directly use
+Git, native sessions, Harbor, and helper agents. Record its hypotheses, tool
+choices, human interventions, cited evidence, finding, and retained experience.
+
+Compare the path with the same agent given a direct prompt, native history, and
+Harbor at a matched budget. This first vertical, not backend completeness, is
+the next implementation milestone.
+
+### C. Harden the boundaries the vertical exercises
 
 Fix execution-time task identity, incomplete-job ingest, multi-trial
-representation, artifact portability, and generated task files.
-Add behavioral tests for each failure.
+representation, artifact portability, and generated task files as the real
+investigation reaches them. Add behavioral tests for each observed failure.
+Spike only the Herdr capabilities required by the vertical and preserve native
+session identity and capture completeness.
 
-### B. Make experience retrievable
+### D. Improve retrieval from observed misses
 
-Add arbitrary artifact references, minimal source and experience envelopes,
-full-text search, and context materialization. Import selected evidence from a
-local study and a small set of native agent sessions without normalizing their
-trajectories or committing private raw material.
+Import selected evidence from the local study and a small set of native agent
+sessions without normalizing their trajectories or committing private raw
+material. Replace scan-based search with a rebuildable full-text index when
+corpus size, latency, or missed evidence demonstrates the need. Add semantic
+search only after lexical and metadata retrieval have a measured limitation.
 
-### C. Connect Herdr
-
-Spike native session identity, agent discovery, prompt/read/wait, helper launch,
-event subscription, detach/reattach, and one remote host. Preserve capability
-and completeness metadata instead of assuming every agent integration is equal.
-
-### D. Run one complete investigation
-
-Ask the researcher to find and explain one important evaluation problem, then
-build or repair and rerun the affected Harbor task. Compare with the same agent
-given a direct prompt and native history access at a matched budget.
-
-### E. Test retained experience
+### E. Test retained-experience transfer
 
 Run a second investigation from new source material. Compare the system with
 and without selected prior experience, or compare two frozen context or repair
